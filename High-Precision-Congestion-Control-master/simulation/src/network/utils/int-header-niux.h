@@ -53,12 +53,12 @@ public:
 			uint32_t ts: 24,
 							 maxRate: 8;
 		};
-		uint64_t buf;
+		uint32_t buf[2];
 	};
 	void Set(uint8_t _id, uint8_t _port, uint16_t _depth, uint32_t _ts, uint8_t _maxRate) {
 		iinfo.Set(_id, _port);
 		depth = _depth;
-		ts = _ts;
+		ts = _ts/1000;
 		maxRate = _maxRate;
 	}
 };
@@ -72,12 +72,12 @@ public:
 			uint32_t ts: 24,
 							 maxRate: 8;
 		};
-		uint64_t buf;
+		uint32_t buf[2];
 	};
 	void Set(uint8_t _id, uint8_t _port, uint16_t _ratio, uint32_t _ts, uint8_t _maxRate) {
 		iinfo.Set(_id, _port);
 		ratio = _ratio;
-		ts = _ts;
+		ts = _ts/1000;
 		maxRate = _maxRate;
 	}
 };
