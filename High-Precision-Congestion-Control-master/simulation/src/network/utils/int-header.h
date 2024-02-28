@@ -1,5 +1,5 @@
-#ifndef INT_HEADER_H
-#define INT_HEADER_H
+#ifndef INT_HEADER_NIUX_H
+#define INT_HEADER_NIUX_H
 
 #include "ns3/buffer.h"
 #include <stdint.h>
@@ -7,107 +7,104 @@
 
 namespace ns3 {
 
-class IntHop{
+class headerInfo {
 public:
-	static const uint32_t timeWidth = 24;
-	static const uint32_t bytesWidth = 20;
-	static const uint32_t qlenWidth = 17;
-	static const uint64_t lineRateValues[8];
-	union{
+	union {
 		struct {
-			uint64_t lineRate: 64-timeWidth-bytesWidth-qlenWidth,
-					 time: timeWidth,
-					 bytes: bytesWidth,
-					 qlen: qlenWidth;
+			uint16_t totalLength: 4,	// total length of this header in packet
+							 nodeNum: 4,	// nodes count for routing
+							 depthNum: 4,	// nodes count for depth info
+							 ratioNum: 4;	// nodes count for ratio info
 		};
-		uint32_t buf[2];
+		uint16_t buf;
 	};
 
-	static const uint32_t byteUnit = 128;
-	static const uint32_t qlenUnit = 80;
-	static uint32_t multi;
-
-	uint64_t GetLineRate(){
-		return lineRateValues[lineRate];
-	}
-	uint64_t GetBytes(){
-		return (uint64_t)bytes * byteUnit * multi;
-	}
-	uint32_t GetQlen(){
-		return (uint32_t)qlen * qlenUnit * multi;
-	}
-	uint64_t GetTime(){
-		return time;
-	}
-	void Set(uint64_t _time, uint64_t _bytes, uint32_t _qlen, uint64_t _rate){
-		time = _time;
-		bytes = _bytes / (byteUnit * multi);
-		qlen = _qlen / (qlenUnit * multi);
-		switch (_rate){
-			case 25000000000lu:
-				lineRate=0;break;
-			case 50000000000lu:
-				lineRate=1;break;
-			case 100000000000lu:
-				lineRate=2;break;
-			case 200000000000lu:
-				lineRate=3;break;
-			case 400000000000lu:
-				lineRate=4;break;
-			default:
-				printf("Error: IntHeader unknown rate: %lu\n", _rate);
-				break;
-		}
-	}
-	uint64_t GetBytesDelta(IntHop &b){
-		if (bytes >= b.bytes)
-			return (bytes - b.bytes) * byteUnit * multi;
-		else
-			return (bytes + (1<<bytesWidth) - b.bytes) * byteUnit * multi;
-	}
-	uint64_t GetTimeDelta(IntHop &b){
-		if (time >= b.time)
-			return time - b.time;
-		else
-			return time + (1<<timeWidth) - b.time;
+	headerInfo() {
+		totalLength = 9;
+		nodeNum = 0;
+		depthNum = 0;
+		ratioNum = 0;
 	}
 };
 
-class IntHeader{
+class idInfo {
 public:
-	static const uint32_t maxHop = 5;
-	enum Mode{
-		NORMAL = 0,
-		TS = 1,
-		PINT = 2,
-		NONE
-	};
-	static Mode mode;
-	static int pint_bytes;
-
-	// Note: the structure of IntHeader must have no internal padding, because we will directly transform the part of packet buffer to IntHeader*
-	union{
+	union {
 		struct {
-			IntHop hop[maxHop];
-			uint16_t nhop;
+			uint16_t id: 8,
+							 port: 8;
 		};
-		uint64_t ts;
-		union {
-			uint16_t power;
-			struct{
-				uint8_t power_lo8, power_hi8;
-			};
-		}pint;
+		uint16_t buf;
 	};
 
-	IntHeader();
+	void Set(uint8_t _id, uint8_t _port) {
+		id = _id;
+		port = _port;
+	}
+};
+
+
+class depthInfo {
+public:
+	union {
+		struct {
+			idInfo iinfo;
+			uint16_t depth;
+			uint32_t ts: 24,
+							 maxRate: 8;
+		};
+		uint32_t buf[2];
+	};
+	void Set(uint8_t _id, uint8_t _port, uint16_t _depth, uint32_t _ts, uint8_t _maxRate) {
+		iinfo.Set(_id, _port);
+		depth = _depth;
+		ts = _ts/1000;
+		maxRate = _maxRate;
+	}
+};
+
+class ratioInfo {
+public:
+	union {
+		struct {
+			idInfo iinfo;
+			uint16_t ratio;
+			uint32_t ts: 24,
+							 maxRate: 8;
+		};
+		uint32_t buf[2];
+	};
+	void Set(uint8_t _id, uint8_t _port, uint16_t _ratio, uint32_t _ts, uint8_t _maxRate) {
+		iinfo.Set(_id, _port);
+		ratio = _ratio;
+		ts = _ts/1000;
+		maxRate = _maxRate;
+	}
+};
+
+class MyIntHeader {
+public:
+	static const uint32_t idNum = 1;
+	static const uint32_t maxNum = 2;
+
+	// headerInfo: 2 Bytes
+	headerInfo hinfo;
+	// idInfo: 2*1 = 2 Bytes
+	idInfo iinfo[idNum];
+	// depthInfo: Max 8*2 = 16 Bytes
+	depthInfo dinfo[maxNum];
+	// ratioInfo: Max 8*2 = 16 Bytes
+	ratioInfo rinfo[maxNum];
+
+	static const uint32_t qlenUnit = 80;
+
+	MyIntHeader();
 	static uint32_t GetStaticSize();
-	void PushHop(uint64_t time, uint64_t bytes, uint32_t qlen, uint64_t rate);
+	void PushRoute(uint8_t _id, uint8_t _port);
+	int PushDepth(uint8_t _id, uint8_t _port, uint16_t _depth, uint32_t _ts, uint8_t _maxRate);
+	int PushRatio(uint8_t _id, uint8_t _port, uint16_t _ratio, uint32_t _ts, uint8_t _maxRate);
 	void Serialize (Buffer::Iterator start) const;
 	uint32_t Deserialize (Buffer::Iterator start);
-	uint64_t GetTs(void);
-	uint16_t GetPower(void);
-	void SetPower(uint16_t);
 };
 
 }
