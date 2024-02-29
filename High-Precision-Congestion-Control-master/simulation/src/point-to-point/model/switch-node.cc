@@ -197,7 +197,8 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		uint8_t id = m_id;
 		uint32_t ts = m_lastPktTs[ifIndex];
 		int push_rst;
-		uint64_t _max_rate = max_rate[ifIndex]/8/1000000;
+		// 放置在数据包中的最大速率信息单位为100MB/s
+		uint64_t _max_rate = max_rate[ifIndex]/8/100000000;
 		uint16_t depth = dev->GetQueue()->GetNBytesTotal();
 		push_rst = ih->PushDepth(id, ifIndex, depth, ts, _max_rate);
 
