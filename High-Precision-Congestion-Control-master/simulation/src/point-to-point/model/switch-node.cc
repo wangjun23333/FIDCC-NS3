@@ -215,7 +215,15 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 			// 乘10000将比值转化为整数值，比方90.12%会变为9012
 			// uint64_t _ratio = (dev->GetDataRate().GetBitRate()*10000)/max_rate[ifIndex];
 			uint64_t _ratio = (now_rate*10000)/max_rate[ifIndex];
+			_ratio = _ratio<10000 ? _ratio:10000;
 			push_rst = ih->PushRatio(id, ifIndex, _ratio, ts, _max_rate);
+			//if (_ratio >= 10000) {
+			//	std::cout << "size: " << p->GetSize() << std::endl;
+			//	std::cout << "dt: " << dt << std::endl;
+			//	std::cout << now_rate << std::endl;
+			//	std::cout << "ratio: " <<  _ratio << std::endl;
+			//	exit(0);
+			//}
 		}
 
 		if (1/*push_rst <= 0*/) {
