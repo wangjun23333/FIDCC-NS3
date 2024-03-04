@@ -187,7 +187,14 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 
 	m_txBytes[ifIndex] += p->GetSize();
 	m_lastPktSize[ifIndex] = p->GetSize();
-	m_lastPktTs[ifIndex] = Simulator::Now().GetTimeStep();
+
+	// 用于计算实时速率
+	uint64_t now_ts = Simulator::Now().GetTimeStep();
+	uint64_t dt = now_ts - m_lastPktTs[ifIndex];
+	uint64_t now_rate = (uint64_t)(p->GetSize())*8*1e9/dt;
+
+	m_lastPktTs[ifIndex] = now_ts;
+
 	
 	uint8_t* buf = p->GetBuffer();
 	if (buf[PppHeader::GetStaticSize() + 9] == 0x06) {
@@ -204,8 +211,10 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 
 		if (push_rst < 0) {
 			// uint64_t _ratio = 0;
+			// dev->GetDataRate().GetBitRate() 实际上和 max_rate[ifIndex]是一样的值
 			// 乘10000将比值转化为整数值，比方90.12%会变为9012
-			uint64_t _ratio = (dev->GetDataRate().GetBitRate()*10000)/max_rate[ifIndex];
+			// uint64_t _ratio = (dev->GetDataRate().GetBitRate()*10000)/max_rate[ifIndex];
+			uint64_t _ratio = (now_rate*10000)/max_rate[ifIndex];
 			push_rst = ih->PushRatio(id, ifIndex, _ratio, ts, _max_rate);
 		}
 
