@@ -483,8 +483,7 @@ namespace ns3 {
         m_txMachineState = BUSY;
         m_currentPkt = p;
         m_phyTxBeginTrace(m_currentPkt);
-				// 将发送时间向上取整，保证计算出来的实时速率<=最大速率
-        Time txTime = Seconds(ceil(m_bps.CalculateTxTime(p->GetSize())));
+        Time txTime = Seconds(m_bps.CalculateTxTime(p->GetSize()));
         Time txCompleteTime = txTime + m_tInterframeGap;
         NS_LOG_LOGIC("Schedule TransmitCompleteEvent in " << txCompleteTime.GetSeconds() << "sec");
         Simulator::Schedule(txCompleteTime, &QbbNetDevice::TransmitComplete, this);
