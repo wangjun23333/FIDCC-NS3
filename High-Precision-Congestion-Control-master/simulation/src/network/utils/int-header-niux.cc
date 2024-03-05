@@ -4,12 +4,16 @@ namespace ns3 {
 
 MyIntHeader::MyIntHeader() {
 	hinfo.buf = 0;
-	hinfo.totalLength = 9;
+	hinfo.totalLength = 10;
 	for (int i = 0; i < idNum; ++i)
 		iinfo[i].buf = 0;
 	for (int i = 0; i < maxNum; ++i) {
 		dinfo[i].buf[0] = 0;
 		dinfo[i].buf[1] = 0;
+		dinfo[i].buf[2] = 0;
+		dinfo[i].buf[3] = 0;
+		dinfo[i].buf[4] = 0;
+
 		rinfo[i].buf[0] = 0;
 		rinfo[i].buf[1] = 0;
 	}
@@ -25,11 +29,10 @@ void MyIntHeader::PushRoute(uint8_t _id, uint8_t _port) {
 			iinfo[hinfo.nodeNum++].Set(_id, _port);
 }
 
-int MyIntHeader::PushDepth(uint8_t _id, uint8_t _port, uint16_t _depth, uint32_t _ts, uint8_t _maxRate) {
-	_depth = _depth / qlenUnit;
-	_depth = (_depth < 0xffff)? _depth : 0xffff;
+int MyIntHeader::PushDepth(uint8_t _id, uint8_t _port, uint32_t _depth, uint32_t _ts, uint8_t _maxRate) {
+	//_depth = _depth / qlenUnit;
 	
-	if (_depth <= 0) {
+	if (_depth == 0) {
 		return -1;
 	}
 
@@ -82,8 +85,8 @@ void MyIntHeader::Serialize (Buffer::Iterator start) const{
 	for (int j = 0; j < idNum; ++j)
 		i.WriteU16(iinfo[j].buf);
 	for (int j = 0; j < maxNum; ++j) {
-		i.WriteU32(dinfo[j].buf[0]);
-		i.WriteU32(dinfo[j].buf[1]);
+		for (int k = 0; k < 5; ++k)
+			i.WriteU16(dinfo[j].buf[k]);
 	}
 	for (int j = 0; j < maxNum; ++j) {
 		i.WriteU32(rinfo[j].buf[0]);
@@ -97,8 +100,8 @@ uint32_t MyIntHeader::Deserialize (Buffer::Iterator start){
 	for (int j = 0; j < idNum; ++j)
 		iinfo[j].buf = i.ReadU16();
 	for (int j = 0; j < maxNum; ++j) {
-		dinfo[j].buf[0] = i.ReadU32();
-		dinfo[j].buf[1] = i.ReadU32();
+		for (int k = 0; k < 5; ++k)
+			dinfo[j].buf[k] = i.ReadU16();
 	}
 	for (int j = 0; j < maxNum; ++j) {
 		rinfo[j].buf[0] = i.ReadU32();
