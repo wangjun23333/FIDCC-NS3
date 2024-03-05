@@ -484,7 +484,8 @@ namespace ns3 {
         m_currentPkt = p;
         m_phyTxBeginTrace(m_currentPkt);
         Time txTime = Seconds(m_bps.CalculateTxTime(p->GetSize()));
-        Time txCompleteTime = txTime + m_tInterframeGap;
+				// 向上取整1ns
+        Time txCompleteTime = txTime + m_tInterframeGap + NanoSeconds(1);
         NS_LOG_LOGIC("Schedule TransmitCompleteEvent in " << txCompleteTime.GetSeconds() << "sec");
         Simulator::Schedule(txCompleteTime, &QbbNetDevice::TransmitComplete, this);
 
