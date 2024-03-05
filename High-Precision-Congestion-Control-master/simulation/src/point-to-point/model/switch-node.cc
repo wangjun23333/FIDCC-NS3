@@ -156,7 +156,7 @@ void SwitchNode::ClearTable(){
 
 // This function can only be called in switch mode
 bool SwitchNode::SwitchReceiveFromDevice(Ptr<NetDevice> device, Ptr<Packet> packet, MyCustomHeader &ch){
-	std::cout << "node:" << m_id<< " sip:" << ch.sip << "  dip:"<< ch.dip << std::endl;
+	//std::cout << "node:" << m_id<< " sip:" << ch.sip << "  dip:"<< ch.dip << std::endl;
 	SendToDev(packet, ch);
 	return true;
 }
@@ -206,8 +206,14 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		int push_rst;
 		// 放置在数据包中的最大速率信息单位为100MB/s
 		uint64_t _max_rate = max_rate[ifIndex]/8/100000000;
-		uint16_t depth = dev->GetQueue()->GetNBytesTotal();
+		uint32_t depth = dev->GetQueue()->GetNBytesTotal();
 		push_rst = ih->PushDepth(id, ifIndex, depth, ts, _max_rate);
+
+		// std::cout << "node: " << (int)id << " port: " << ifIndex << std::endl;
+		// std::cout << "depth: " << depth << std::endl;
+		// std::cout << "rate: " << now_rate << std::endl;
+		// std::cout << "max rate: " << dev->GetDataRate().GetBitRate() << std::endl;
+		// std::cout << std::endl;
 
 		if (push_rst < 0) {
 			// uint64_t _ratio = 0;
