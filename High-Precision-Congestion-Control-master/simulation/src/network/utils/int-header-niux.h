@@ -43,25 +43,26 @@ public:
 	}
 };
 
-
+#pragma pack (1)
 class depthInfo {
 public:
 	union {
 		struct {
 			idInfo iinfo;
-			uint16_t depth;
+			uint32_t depth;
 			uint32_t ts: 24,
 							 maxRate: 8;
 		};
-		uint32_t buf[2];
+		uint16_t buf[5];
 	};
-	void Set(uint8_t _id, uint8_t _port, uint16_t _depth, uint32_t _ts, uint8_t _maxRate) {
+	void Set(uint8_t _id, uint8_t _port, uint32_t _depth, uint32_t _ts, uint8_t _maxRate) {
 		iinfo.Set(_id, _port);
 		depth = _depth;
 		ts = _ts/100;
 		maxRate = _maxRate;
 	}
 };
+#pragma pack ()
 
 class ratioInfo {
 public:
@@ -91,17 +92,17 @@ public:
 	headerInfo hinfo;
 	// idInfo: 2*1 = 2 Bytes
 	idInfo iinfo[idNum];
-	// depthInfo: Max 8*2 = 16 Bytes
+	// depthInfo: Max 10*2 = 20 Bytes
 	depthInfo dinfo[maxNum];
 	// ratioInfo: Max 8*2 = 16 Bytes
 	ratioInfo rinfo[maxNum];
 
-	static const uint32_t qlenUnit = 80;
+	//static const uint32_t qlenUnit = 80;
 
 	MyIntHeader();
 	static uint32_t GetStaticSize();
 	void PushRoute(uint8_t _id, uint8_t _port);
-	int PushDepth(uint8_t _id, uint8_t _port, uint16_t _depth, uint32_t _ts, uint8_t _maxRate);
+	int PushDepth(uint8_t _id, uint8_t _port, uint32_t _depth, uint32_t _ts, uint8_t _maxRate);
 	int PushRatio(uint8_t _id, uint8_t _port, uint16_t _ratio, uint32_t _ts, uint8_t _maxRate);
 	void Serialize (Buffer::Iterator start) const;
 	uint32_t Deserialize (Buffer::Iterator start);
