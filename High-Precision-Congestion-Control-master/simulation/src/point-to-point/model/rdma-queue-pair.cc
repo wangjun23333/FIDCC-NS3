@@ -56,12 +56,12 @@ RdmaQueuePair::RdmaQueuePair(uint16_t pg, Ipv4Address _sip, Ipv4Address _dip, ui
 
     mycc.m_congestTimeStamp = 0;//节点拥塞发生到接收到该数据包的目前窗口为止最小的时间
     mycc.m_idleTimeStamp = 0;//节点空闲发生到接收到该数据包的目前窗口为止最小的时间
-    mycc.m_depth = 1;
+    mycc.m_depth = 0;
     mycc.m_ratio = 10000;
     mycc.m_rTs = 0;//队列空闲时的时间
     mycc.m_dTs = 0;//发生拥塞时的时间
-    mycc.m_max_dRate = 0;
-    mycc.m_max_rRate = 0;
+    mycc.m_max_dRate = 1; // 缺省队列返回最大速率时间
+    mycc.m_max_rRate = 1; // 缺省比值返回最大速率时间
     
     
     hp.m_lastUpdateSeq = 0;
