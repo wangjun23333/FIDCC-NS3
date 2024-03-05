@@ -70,7 +70,7 @@ public:
 
         uint64_t m_congestTimeStamp;//节点拥塞发生到接收到该数据包的目前窗口为止最小的时间
         uint64_t m_idleTimeStamp;//节点空闲发生到接收到该数据包的目前窗口为止最小的时间
-        uint16_t m_depth;
+        uint32_t m_depth;
         uint16_t m_ratio;
         uint32_t m_rTs;//队列空闲时的时间
         uint32_t m_dTs;//发生拥塞时的时间
