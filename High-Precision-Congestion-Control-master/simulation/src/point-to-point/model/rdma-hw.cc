@@ -355,10 +355,16 @@ int RdmaHw::ReceiveUdp(Ptr<Packet> p, MyCustomHeader &ch){
 
 
 int RdmaHw::ReceiveTcp(Ptr<Packet> p, MyCustomHeader &ch){
-    // std::cout<< "node:" << m_node->GetId()<< "  tcp sip:" << ch.sip << "    tcp dip:" << ch.dip<< " tcp-seq:"<< ch.tcp.seq<<std::endl;
+		// std::cout<< "node:" << m_node->GetId()<< "  tcp sip:" << ch.sip << "    tcp dip:" << ch.dip<< " tcp-seq:"<< ch.tcp.seq<<std::endl;
     uint8_t ecnbits = ch.GetIpv4EcnBits();
     // std::cout<< "node\t" << m_node->GetId() << "tcp packet node num\t" << ch.tcp.ih.hinfo.nodeNum << "depth num\t" << ch.tcp.ih.hinfo.depthNum << "ratio num\t" << ch.tcp.ih.hinfo.ratioNum << "\tseq"<< ch.tcp.seq <<std::endl;
     
+		// std::cout << "node: " << ch.tcp.ih.dinfo[0].iinfo.id << " port: " << ch.tcp.ih.dinfo[0].iinfo.port << " depth0: " << ch.tcp.ih.dinfo[0].depth << std::endl;
+		// std::cout << "node: " << ch.tcp.ih.dinfo[1].iinfo.id << " port: " << ch.tcp.ih.dinfo[1].iinfo.port << " depth1: " << ch.tcp.ih.dinfo[1].depth << std::endl;
+		// std::cout << "node: " << ch.tcp.ih.rinfo[0].iinfo.id << " port: " << ch.tcp.ih.rinfo[0].iinfo.port << " ratio0: " << ch.tcp.ih.rinfo[0].ratio << std::endl;
+		// std::cout << "node: " << ch.tcp.ih.rinfo[1].iinfo.id << " port: " << ch.tcp.ih.rinfo[1].iinfo.port << " ratio1: " << ch.tcp.ih.rinfo[1].ratio << std::endl;
+		// std::cout << std::endl;
+
     uint32_t payload_size = p->GetSize() - ch.GetSerializedSize();
     // if (ch.tcp.ih.hinfo.depthNum !=0)
     // {
@@ -461,7 +467,7 @@ int RdmaHw::ReceiveAck(Ptr<Packet> p, MyCustomHeader &ch){
     uint16_t qIndex = ch.ack.pg;
     uint16_t port = ch.ack.dport;
     uint32_t seq = ch.ack.seq;
-    // std::cout<< "node:" << m_node->GetId()<< "  ack sip:" << ch.sip << "    ack dip:" << ch.dip<<"  ch-ack-flag:"<< ch.ack.flags <<"    ack-seq:"<< ch.ack.seq<<std::endl;
+    //0 std::cout<< "node:" << m_node->GetId()<< "  ack sip:" << ch.sip << "    ack dip:" << ch.dip<<"  ch-ack-flag:"<< ch.ack.flags <<"    ack-seq:"<< ch.ack.seq<<std::endl;
 
     /*uint8_t cnp = (ch.ack.flags >> qbbHeader::FLAG_CNP) & 1;
     int i;*/
@@ -832,7 +838,7 @@ void RdmaHw::HyperIncreaseMlx(Ptr<RdmaQueuePair> qp){
  * My CC
  ***********************/
 void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader &ch){
-    std::cout<< "node:" << m_node->GetId()<<"current windowsSIZE:"<<qp->mycc.m_currentWinSize<<std::endl;
+    //std::cout<< "node:" << m_node->GetId()<<"current windowsSIZE:"<<qp->mycc.m_currentWinSize<<std::endl;
     //可能是自身的ack数据包，也可能是同set主机的ack数据包
     //如果是第一个窗口或者当前窗口和上一个窗口的大小未发生改变的情况，此时不考虑过度反应
     if (qp->mycc.m_lastUpdateSeq == 0 || qp->mycc.m_currentWinSize == qp->mycc.m_lastWinSize) {
@@ -1006,7 +1012,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
     
     if (ch.ack.flags == 0) {//自身的数据包并且一个完整的RTT窗口之后，更新发送速率
         std::cout<<"current depth:"<<qp->mycc.m_depth<<std::endl;
-        std::cout<<"current radio:"<<qp->mycc.m_ratio<<std::endl;
+        std::cout<<"current ratio:"<<qp->mycc.m_ratio<<std::endl;
         DataRate new_rate;
         uint32_t ack_seq = ch.ack.seq;
         uint32_t next_seq = qp->snd_nxt;//snd_nxt为下一个发送的位置，它指向未发送但可以发送的第一个字节的序列号。
@@ -1015,13 +1021,13 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             if ((qp->mycc.m_dTs != 0 || qp->mycc.m_rTs != 0) && (qp->mycc.m_dTs > qp->mycc.m_rTs || qp->mycc.m_rTs-qp->mycc.m_dTs>1000*1000000)) {//在一个窗口内拥塞事件最后发生
                 qp->mycc.m_lastUpdateTime = Simulator::Now().GetTimeStep();
                 qp->mycc.m_lastUpdateSeq = next_seq;
-                std::cout<<"next_seq:"<<next_seq<<std::endl;
+                //1std::cout<<"next_seq:"<<next_seq<<std::endl;
                 qp->mycc.m_lastWinSize = qp->mycc.m_currentWinSize;
                 qp->mycc.m_lastUpdateCongestTime = qp->mycc.m_dTs;
 
-                std::cout<<"next_seq:"<<next_seq<<std::endl;
+                //1std::cout<<"next_seq:"<<next_seq<<std::endl;
                 // xiugai
-                double alpha = qp->mycc.m_depth*MyIntHeader::qlenUnit/(qp->mycc.m_depth*MyIntHeader::qlenUnit + (qp->mycc.m_max_dRate * qp->m_baseRtt)/1000);
+                double alpha = qp->mycc.m_depth/(qp->mycc.m_depth + (qp->mycc.m_max_dRate * qp->m_baseRtt)/8000);
                 qp->mycc.m_currentWinSize = qp->mycc.m_currentWinSize * (1-alpha);
                 new_rate = qp->m_rate * (1-alpha);
                 //更新速率
@@ -1030,7 +1036,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                 if (new_rate > qp->m_max_rate)
                     new_rate = qp->m_max_rate;
                 qp->m_rate = new_rate;
-                std::cout<<"***************alpha***********************:"<<alpha<<std::endl;
+                //1std::cout<<"***************alpha***********************:"<<alpha<<std::endl;
                 
                 //重置下面的变量
                 qp->mycc.m_congestTimeStamp = 0;
@@ -1069,7 +1075,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             }
         }
     }
-    std::cout<< "node:" << m_node->GetId()<<"change windowsSIZE:"<<qp->mycc.m_currentWinSize<<std::endl;
+    //1std::cout<< "node:" << m_node->GetId()<<"change windowsSIZE:"<<qp->mycc.m_currentWinSize<<std::endl;
 }
 
 
