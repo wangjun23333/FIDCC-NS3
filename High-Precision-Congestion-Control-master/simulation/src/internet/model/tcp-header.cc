@@ -386,7 +386,7 @@ Ptr<TcpOption> TcpHeader::GetOption (TcpOption::Kind kind) const
 // add by niux
 void TcpHeader::SetFin (bool fin)
 {
-  uint16_t flag = 1?0:fin;
+  uint16_t flag = fin?1:0;
   TcpHeader::SetFlags(flag);
 }
 
