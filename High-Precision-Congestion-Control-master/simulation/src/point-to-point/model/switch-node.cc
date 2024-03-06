@@ -137,7 +137,8 @@ void SwitchNode::SendToDev(Ptr<Packet>p, MyCustomHeader &ch){
 			}else{
 				return; // Drop
 			}
-			CheckAndSendPfc(inDev, qIndex);
+			// 不需要暂停，丢包即可
+			// CheckAndSendPfc(inDev, qIndex);
 		}
 		m_bytes[inDev][idx][qIndex] += p->GetSize();
 		m_devices[idx]->SwitchSend(qIndex, p, ch);
@@ -181,8 +182,9 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 				p->AddHeader(ppp);
 			}
 		}*/
-		//CheckAndSendPfc(inDev, qIndex);
-		CheckAndSendResume(inDev, qIndex);
+		// 不需要暂停，丢包即可
+		// CheckAndSendPfc(inDev, qIndex);
+		// CheckAndSendResume(inDev, qIndex);
 	}
 
 	m_txBytes[ifIndex] += p->GetSize();
