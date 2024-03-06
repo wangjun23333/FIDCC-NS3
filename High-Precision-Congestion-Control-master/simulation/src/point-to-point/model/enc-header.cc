@@ -36,7 +36,7 @@ namespace ns3 {
 	}
 
 	void encHeader::SetFlags(uint16_t _flags) {
-        flags = _flags;
+        flags |= _flags;
     }
 
 	void encHeader::SetMyIntHeader(const MyIntHeader &_ih){
@@ -44,7 +44,7 @@ namespace ns3 {
 	}
 
 	void encHeader::SetFin(bool fin) {
-		uint16_t flag = 1?0:fin;
+		uint16_t flag = fin?2:0;
 		encHeader::SetFlags(flag);
 	}
 
