@@ -117,7 +117,7 @@ void EnquserverNode::SendToDev(Ptr<Packet>p, MyCustomHeader &ch){
 
 void EnquserverNode::GetShareTable(Ptr<const Packet>p, MyCustomHeader &ch){
     if (ch.l3Prot == 0xFC || ch.l3Prot == 0xFD) {//获取接收到的ack包中的路由id和port信息，在共享链路表对应的表项中查找，若没有，则直接添加
-        bool finFlag = (ch.ack.flags&0x2 == 2); // 用于判断流是否完成
+        bool finFlag = ((ch.ack.flags&0x2) == 2); // 用于判断流是否完成
         if (finFlag) {
             for (m_sharedTableEntry& p : m_sharedTable) {
             /*p.flowInfos.erase(std::remove_if(p.flowInfos.begin(), p.flowInfos.end(),
