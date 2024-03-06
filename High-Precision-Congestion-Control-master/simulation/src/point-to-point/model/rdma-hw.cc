@@ -358,12 +358,6 @@ int RdmaHw::ReceiveTcp(Ptr<Packet> p, MyCustomHeader &ch){
 		// std::cout<< "node:" << m_node->GetId()<< "  tcp sip:" << ch.sip << "    tcp dip:" << ch.dip<< " tcp-seq:"<< ch.tcp.seq<<std::endl;
     uint8_t ecnbits = ch.GetIpv4EcnBits();
     // std::cout<< "node\t" << m_node->GetId() << "tcp packet node num\t" << ch.tcp.ih.hinfo.nodeNum << "depth num\t" << ch.tcp.ih.hinfo.depthNum << "ratio num\t" << ch.tcp.ih.hinfo.ratioNum << "\tseq"<< ch.tcp.seq <<std::endl;
-    
-		// std::cout << "node: " << ch.tcp.ih.dinfo[0].iinfo.id << " port: " << ch.tcp.ih.dinfo[0].iinfo.port << " depth0: " << ch.tcp.ih.dinfo[0].depth << std::endl;
-		// std::cout << "node: " << ch.tcp.ih.dinfo[1].iinfo.id << " port: " << ch.tcp.ih.dinfo[1].iinfo.port << " depth1: " << ch.tcp.ih.dinfo[1].depth << std::endl;
-		// std::cout << "node: " << ch.tcp.ih.rinfo[0].iinfo.id << " port: " << ch.tcp.ih.rinfo[0].iinfo.port << " ratio0: " << ch.tcp.ih.rinfo[0].ratio << std::endl;
-		// std::cout << "node: " << ch.tcp.ih.rinfo[1].iinfo.id << " port: " << ch.tcp.ih.rinfo[1].iinfo.port << " ratio1: " << ch.tcp.ih.rinfo[1].ratio << std::endl;
-		// std::cout << std::endl;
 
     uint32_t payload_size = p->GetSize() - ch.GetSerializedSize();
     // if (ch.tcp.ih.hinfo.depthNum !=0)
@@ -375,6 +369,19 @@ int RdmaHw::ReceiveTcp(Ptr<Packet> p, MyCustomHeader &ch){
     // std::cout << "packet_size" << p->GetSize() << "ch_size\t"<< ch.GetSerializedSize() << std::endl;
     // TODO find corresponding rx queue pairstd::cout << "node:" << m_node->GetId()<< " sip:" << ch.sip << "  dip:"<< ch.dip << std::endl;
     
+		std::cout << "tcp info: " << std::endl;
+		for (int i = 0; i < ch.tcp.ih.hinfo.depthNum; ++i) {
+			std::cout << i << std::endl;
+			std::cout << "node: " << (int)ch.tcp.ih.dinfo[i].iinfo.id << " port: " << ch.tcp.ih.dinfo[i].iinfo.port << std::endl;
+			std::cout << "tcp depth: " << ch.tcp.ih.dinfo[i].depth << std::endl;
+		}
+		for (int i = 0; i < ch.tcp.ih.hinfo.ratioNum; ++i) {
+			std::cout << i << std::endl;
+			std::cout << "node: " << (int)ch.tcp.ih.rinfo[i].iinfo.id << " port: " << ch.tcp.ih.rinfo[i].iinfo.port << std::endl;
+			std::cout << "tcp ratio: " << ch.tcp.ih.rinfo[i].ratio << std::endl;
+		}
+		std::cout << std::endl;
+
     Ptr<RdmaRxQueuePair> rxQp = GetRxQp(ch.dip, ch.sip, ch.tcp.dport, ch.tcp.sport, 0, true);
     if (ecnbits != 0){
         rxQp->m_ecn_source.ecnbits |= ecnbits;
@@ -384,6 +391,7 @@ int RdmaHw::ReceiveTcp(Ptr<Packet> p, MyCustomHeader &ch){
     rxQp->m_milestone_rx = m_ack_interval;
 
     int x = ReceiverCheckSeq(ch.tcp.seq, rxQp, payload_size);
+		//x = 1;
     // std::cout<< "tcp-seq:"<< ch.tcp.seq << std::endl;
     if (x == 1 || x == 2){ //generate ACK or NACK
 //        qbbHeader seqh;
@@ -477,7 +485,20 @@ int RdmaHw::ReceiveAck(Ptr<Packet> p, MyCustomHeader &ch){
         return 0;
     }
 
-    if (ch.ack.flags == 0) { //自身数据包
+		std::cout << "ack info: " << std::endl;
+		for (int i = 0; i < ch.ack.ih.hinfo.depthNum; ++i) {
+			std::cout << i << std::endl;
+			std::cout << "node: " << (int)ch.ack.ih.dinfo[i].iinfo.id << " port: " << ch.ack.ih.dinfo[i].iinfo.port << std::endl;
+			std::cout << "ack depth: " << ch.ack.ih.dinfo[i].depth << std::endl;
+		}
+		for (int i = 0; i < ch.ack.ih.hinfo.ratioNum; ++i) {
+			std::cout << i << std::endl;
+			std::cout << "node: " << (int)ch.ack.ih.rinfo[i].iinfo.id << " port: " << ch.ack.ih.rinfo[i].iinfo.port << std::endl;
+			std::cout << "ack ratio: " << ch.ack.ih.rinfo[i].ratio << std::endl;
+		}
+		std::cout << std::endl;
+
+    if ((ch.ack.flags&0x01) == 0) { //自身数据包
         uint32_t nic_idx = GetNicIdxOfQp(qp);
         Ptr<QbbNetDevice> dev = m_nic[nic_idx].dev;
         if (m_ack_interval == 0)
@@ -639,7 +660,7 @@ Ptr<Packet> RdmaHw::GetNxtPacket(Ptr<RdmaQueuePair> qp){
     if (m_mtu < payload_size)
         payload_size = m_mtu;
     else //剩余数据量小于等于一个MTU
-        fin == true;
+        fin = true;
     
     Ptr<Packet> p = Create<Packet> (payload_size);
     // add SeqTsHeader
@@ -1013,6 +1034,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
     if (ch.ack.flags == 0) {//自身的数据包并且一个完整的RTT窗口之后，更新发送速率
         std::cout<<"current depth:"<<qp->mycc.m_depth<<std::endl;
         std::cout<<"current ratio:"<<qp->mycc.m_ratio<<std::endl;
+
         DataRate new_rate;
         uint32_t ack_seq = ch.ack.seq;
         uint32_t next_seq = qp->snd_nxt;//snd_nxt为下一个发送的位置，它指向未发送但可以发送的第一个字节的序列号。
