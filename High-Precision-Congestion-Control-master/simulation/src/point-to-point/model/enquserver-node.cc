@@ -116,56 +116,53 @@ void EnquserverNode::SendToDev(Ptr<Packet>p, MyCustomHeader &ch){
 //生成共享链路表操作
 
 void EnquserverNode::GetShareTable(Ptr<const Packet>p, MyCustomHeader &ch){
-    if (ch.ack.ih.hinfo.nodeNum ==1)
-    {
-        if (ch.l3Prot == 0x6) {
-            if (ch.tcp.tcpFlags&&0x01 == 1){//接收到fin标识位为1，说明该流结束，此时将该数据包中的{sip,dip,sport,dport}对应的共享链路表中的表项全部删除
-                for (m_sharedTableEntry& p : m_sharedTable) {
-                    /*p.flowInfos.erase(std::remove_if(p.flowInfos.begin(), p.flowInfos.end(),
-                                                    [](const flowInfo& f) {
-                                                        return f.sip == ch.dip && f.dip == ch.sip&& f.dport == ch.tcp.sport&& f.sport == ch.tcp.dport;
-                                                    }),
-                                        p.flowInfos.end());*/
-                        for (auto f = p.flowInfos.begin(); f != p.flowInfos.end(); ) {
-                            if (f->sip == ch.dip && f->dip == ch.sip&& f->dport == ch.tcp.sport&& f->sport == ch.tcp.dport) {
-                                p.flowInfos.erase(f);
-                            }
-                            else {
-                                ++f;
-                            }
-                        }
+    if (ch.l3Prot == 0xFC || ch.l3Prot == 0xFD) {//获取接收到的ack包中的路由id和port信息，在共享链路表对应的表项中查找，若没有，则直接添加
+        bool finFlag = (ch.ack.flags&0x2 == 2); // 用于判断流是否完成
+        if (finFlag) {
+            for (m_sharedTableEntry& p : m_sharedTable) {
+            /*p.flowInfos.erase(std::remove_if(p.flowInfos.begin(), p.flowInfos.end(),
+                                            [](const flowInfo& f) {
+                                                return f.sip == ch.dip && f.dip == ch.sip&& f.dport == ch.tcp.sport&& f.sport == ch.tcp.dport;
+                                            }),
+                                p.flowInfos.end());*/
+                for (auto f = p.flowInfos.begin(); f != p.flowInfos.end(); ) {
+                    if (f->sip == ch.dip && f->dip == ch.sip&& f->dport == ch.tcp.sport&& f->sport == ch.tcp.dport) {
+                        p.flowInfos.erase(f);
                     }
+                    else {
+                        ++f;
+                    }
+                }
             }
         }
-        else if (ch.l3Prot == 0xFC || ch.l3Prot == 0xFD) {//获取接收到的ack包中的路由id和port信息，在共享链路表对应的表项中查找，若没有，则直接添加
+        else if (ch.ack.ih.hinfo.nodeNum ==1) {
             bool found = false;
-                for (m_sharedTableEntry& p : m_sharedTable) {
-                    if (p.rid == ch.ack.ih.iinfo[0].id && p.port == ch.ack.ih.iinfo[0].port) {
-                        found = true;
-                        bool flowFound = false;
-                        for (flowInfo& info : p.flowInfos)
+            for (m_sharedTableEntry& p : m_sharedTable) {
+                if (p.rid == ch.ack.ih.iinfo[0].id && p.port == ch.ack.ih.iinfo[0].port) {
+                    found = true;
+                    bool flowFound = false;
+                    for (flowInfo& info : p.flowInfos)
+                    {
+                        if (info.sip==ch.dip && info.dip==ch.sip && info.sport==ch.tcp.dport && info.dport==ch.tcp.sport)
                         {
-                            if (info.sip==ch.dip && info.dip==ch.sip && info.sport==ch.tcp.dport && info.dport==ch.tcp.sport)
-                            {
-                                flowFound = true;
-                                break;
-                            }
+                            flowFound = true;
+                            break;
                         }
-                        if (!flowFound)
-                        {
-                            p.flowInfos.push_back({ch.dip,ch.sip,ch.tcp.dport,ch.tcp.sport});//将该数据包的四元组信息添加到对应的表项中
-                            break; // 如果找到了，跳出循环
-                        }
-                        
                     }
-                }
-                // 如果没找到，添加到向量中
-                if (!found) {
-                    std::vector<flowInfo> info;
-                    info.push_back({ch.dip,ch.sip,ch.tcp.dport,ch.tcp.sport}); //将四元组信息添加到Info中
-                    m_sharedTable.push_back({ch.ack.ih.iinfo[0].id, ch.ack.ih.iinfo[0].port,info});
-                }
+                    if (!flowFound)
+                    {
+                        p.flowInfos.push_back({ch.dip,ch.sip,ch.tcp.dport,ch.tcp.sport});//将该数据包的四元组信息添加到对应的表项中
+                        break; // 如果找到了，跳出循环
+                    }
 
+                }
+            }
+            // 如果没找到，添加到向量中
+            if (!found) {
+                std::vector<flowInfo> info;
+                info.push_back({ch.dip,ch.sip,ch.tcp.dport,ch.tcp.sport}); //将四元组信息添加到Info中
+                m_sharedTable.push_back({ch.ack.ih.iinfo[0].id, ch.ack.ih.iinfo[0].port,info});
+            }
         }
     }
     
@@ -297,14 +294,14 @@ void EnquserverNode::MatchSharedTableSendToRelatedSender(Ptr<NetDevice> device, 
                     PppHeader ppp;
                     ppp.SetProtocol (0x0021);//IPv4
                     newp->AddHeader (ppp);
-                    MyCustomHeader ch(MyCustomHeader::L2_Header | MyCustomHeader::L3_Header | MyCustomHeader::L4_Header);
-                    p->PeekHeader(ch);
+                    MyCustomHeader newch(MyCustomHeader::L2_Header | MyCustomHeader::L3_Header | MyCustomHeader::L4_Header);
+                    newp->PeekHeader(newch);
             //        AddHeader(newp, 0x800);    // Attach PPP header
                     
         //            MyCustomHeader ch(MyCustomHeader::L2_Header | MyCustomHeader::L3_Header | MyCustomHeader::L4_Header);
         //            ch.getInt = 1; // parse INT header
         //            newp->PeekHeader(ch); //把packet中的相关信息read到ch中
-                    SendToDev(newp, ch);
+                    SendToDev(newp, newch);
         //            uint32_t nic_idx = GetNicIdxOfRxQp(info.fInfo.dip);
         //            m_nic[nic_idx].dev->RdmaEnqueueHighPrioQ(newp);
         //            m_nic[nic_idx].dev->TriggerTransmit();
