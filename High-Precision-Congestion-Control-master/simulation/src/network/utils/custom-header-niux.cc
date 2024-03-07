@@ -87,11 +87,11 @@ uint32_t MyCustomHeader::GetSerializedSize (void) const{
 		len += 5*4;
 	if (headerType & L4_Header){
 
-		if (l3Prot == 0x6) // TCP
+		//if (l3Prot == 0x6) // TCP
 
 		if (l3Prot == 0x6) // TCP, ignore optional blocks
 
-			len += 20 + 6 + 36;
+			len += 20 + 6 + tcp.ih.GetStaticSize();
 		else if (l3Prot == 0x11) // UDP
 			len += 8;
 	}
