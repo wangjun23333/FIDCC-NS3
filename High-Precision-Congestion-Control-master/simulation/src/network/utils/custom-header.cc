@@ -21,19 +21,17 @@
 #include "ns3/assert.h"
 #include "ns3/abort.h"
 #include "ns3/log.h"
-#include "custom-header.h"
+#include "custom-header-niux.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("CustomHeader");
+NS_LOG_COMPONENT_DEFINE ("MyCustomHeader");
 
-NS_OBJECT_ENSURE_REGISTERED (CustomHeader);
+NS_OBJECT_ENSURE_REGISTERED (MyCustomHeader);
 
-CustomHeader::CustomHeader ()
+MyCustomHeader::MyCustomHeader ()
   : brief(1), headerType(L3_Header | L4_Header), 
 	getInt(1),
-	// ppp header
-	pppProto (0),
 	// IPv4 header
     m_payloadSize (0),
     ipid (0),
@@ -46,11 +44,9 @@ CustomHeader::CustomHeader ()
     m_headerSize(5*4)
 {
 }
-CustomHeader::CustomHeader (uint32_t _headerType)
+MyCustomHeader::MyCustomHeader (uint32_t _headerType)
   : brief(1), headerType(_headerType), 
 	getInt(1),
-	// ppp header
-	pppProto (0),
 	// IPv4 header
     m_payloadSize (0),
     ipid (0),
@@ -65,47 +61,44 @@ CustomHeader::CustomHeader (uint32_t _headerType)
 }
 
 TypeId 
-CustomHeader::GetTypeId (void)
+MyCustomHeader::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::CustomHeader")
+  static TypeId tid = TypeId ("ns3::MyCustomHeader")
     .SetParent<Header> ()
     .SetGroupName ("Network")
-    .AddConstructor<CustomHeader> ()
+    .AddConstructor<MyCustomHeader> ()
   ;
   return tid;
 }
 TypeId 
-CustomHeader::GetInstanceTypeId (void) const
+MyCustomHeader::GetInstanceTypeId (void) const
 {
-  NS_LOG_FUNCTION (this);
+  //NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 
-void CustomHeader::Print (std::ostream &os) const{
+void MyCustomHeader::Print (std::ostream &os) const{
 }
-uint32_t CustomHeader::GetSerializedSize (void) const{
+uint32_t MyCustomHeader::GetSerializedSize (void) const{
 	uint32_t len = 0;
 	if (headerType & L2_Header)
 		len += 14;
 	if (headerType & L3_Header)
 		len += 5*4;
 	if (headerType & L4_Header){
-		if (l3Prot == 0x6) // TCP
-			len += tcp.length * 4;
+
+		//if (l3Prot == 0x6) // TCP
+
+		if (l3Prot == 0x6) // TCP, ignore optional blocks
+
+			len += 20 + 6 + tcp.ih.GetStaticSize();
 		else if (l3Prot == 0x11) // UDP
-			len += GetUdpHeaderSize();
-		else if (l3Prot == 0xFC || l3Prot == 0xFD)
-			len += GetAckSerializedSize();
-		else if (l3Prot == 0xFF)
 			len += 8;
-		else if (l3Prot == 0xFE)
-			len += 9;
 	}
 	return len;
 }
-void CustomHeader::Serialize (Buffer::Iterator start) const{
+void MyCustomHeader::Serialize (Buffer::Iterator start) const{
   Buffer::Iterator i = start;
-  
   // ppp
   if (headerType & L2_Header){
 	  i.WriteHtonU16(pppProto);
@@ -149,42 +142,30 @@ void CustomHeader::Serialize (Buffer::Iterator start) const{
 		  i.WriteHtonU16 (0);
 		  i.WriteHtonU16 (tcp.urgentPointer);
 
-		  uint32_t optionLen = (tcp.length - 5) * 4;
+		  /*uint32_t optionLen = (tcp.length - 5) * 4;
 		  if (optionLen <= 32)
-			  i.Write(tcp.optionBuf, optionLen);
-	  }else if (l3Prot == 0x11){ // UDP
+			  i.Write(tcp.optionBuf, optionLen);*/
+			tcp.ih.Serialize(i);
+
+	  } else if (l3Prot == 0x11){ // UDP
 		  // udp header
 		  i.WriteHtonU16 (udp.sport);
 		  i.WriteHtonU16 (udp.dport);
 		  i.WriteHtonU16 (udp.payload_size);
 		  i.WriteHtonU16 (0);
-		  // SeqTsHeader
-		  i.WriteHtonU32 (udp.seq);
-		  i.WriteHtonU16 (udp.pg);
-		  udp.ih.Serialize(i);
-	  }else if (l3Prot == 0xFF){ // CNP
-		  i.WriteU8(cnp.qIndex);
-		  i.WriteU16(cnp.fid);
-		  i.WriteU8(cnp.ecnBits);
-		  i.WriteU16(cnp.qfb);
-		  i.WriteU16(cnp.total);
-	  }else if (l3Prot == 0xFC || l3Prot == 0xFD){ // ACK or NACK
+	  } else if (l3Prot == 0xFC || l3Prot == 0xFD){ // ACK or NACK
 		  i.WriteU16(ack.sport);
 		  i.WriteU16(ack.dport);
 		  i.WriteU16(ack.flags);
 		  i.WriteU16(ack.pg);
 		  i.WriteU32(ack.seq);
-		  udp.ih.Serialize(i);
-	  }else if (l3Prot == 0xFE){ // PFC
-		  i.WriteU32 (pfc.time);
-		  i.WriteU32 (pfc.qlen);
-		  i.WriteU8 (pfc.qIndex);
+		  ack.ih.Serialize(i);
 	  }
   }
 }
 
 uint32_t
-CustomHeader::Deserialize (Buffer::Iterator start)
+MyCustomHeader::Deserialize (Buffer::Iterator start)
 {
   Buffer::Iterator i = start;
 
@@ -258,9 +239,9 @@ CustomHeader::Deserialize (Buffer::Iterator start)
 		  tcp.dport = i.ReadNtohU16 ();
 		  tcp.seq = i.ReadNtohU32 ();
 		  tcp.ack = i.ReadNtohU32 ();
-		  if (brief){
+		  /*if (brief){
 			  tcp.tcpFlags = i.ReadNtohU16() & 0x3f;
-		  }else {
+		  }else {*/
 			  uint16_t field = i.ReadNtohU16 ();
 			  tcp.tcpFlags = field & 0x3F;
 			  tcp.length = field >> 12;
@@ -268,16 +249,27 @@ CustomHeader::Deserialize (Buffer::Iterator start)
 			  i.Next (2);
 			  tcp.urgentPointer = i.ReadNtohU16 ();
 
-			  uint32_t optionLen = (tcp.length - 5) * 4;
+			  /*uint32_t optionLen = (tcp.length - 5) * 4;
 			  if (optionLen > 32)
 			  {
 				  NS_LOG_ERROR ("TCP option length " << optionLen << " > 32; options discarded");
 				  return 20;
+
 			  }
 			  i.Read(tcp.optionBuf, optionLen);
-		  }
+
+			  }*/
+			  //i.Read(tcp.optionBuf, optionLen);
+
+		  //}
 		  l4Size = tcp.length * 4;
-	  }else if (l3Prot == 0x11){ // UDP + SeqTsHeader
+
+		tcp.ih_seq = i.ReadNtohU32();
+		tcp.ih_pg = i.ReadNtohU16();
+
+		l4Size += tcp.ih.Deserialize(i);
+
+	  } else if (l3Prot == 0x11){ // UDP
 		  i = start;
 		  i.Next(l2Size + l3Size);
 		  // udp header
@@ -289,55 +281,24 @@ CustomHeader::Deserialize (Buffer::Iterator start)
 			  udp.payload_size = i.ReadNtohU16();
 			  i.Next(2);
 		  }
-
-		  // SeqTsHeader
-		  udp.seq = i.ReadNtohU32 ();
-		  udp.pg =  i.ReadNtohU16 ();
-		  if (getInt)
-			  udp.ih.Deserialize(i);
-
-		  l4Size = GetUdpHeaderSize();
-	  }else if (l3Prot == 0xFF){
-		  cnp.qIndex = i.ReadU8();
-		  cnp.fid = i.ReadU16();
-		  cnp.ecnBits = i.ReadU8();
-		  cnp.qfb = i.ReadU16();
-		  cnp.total = i.ReadU16();
 		  l4Size = 8;
-	  }else if (l3Prot == 0xFC || l3Prot == 0xFD){ // ACK or NACK
+	  } else if (l3Prot == 0xFC || l3Prot == 0xFD) { // ACK or NACK
 		  ack.sport = i.ReadU16();
 		  ack.dport = i.ReadU16();
 		  ack.flags = i.ReadU16();
 		  ack.pg = i.ReadU16();
 		  ack.seq = i.ReadU32();
+		  l4Size = 12;
 		  if (getInt)
-			  ack.ih.Deserialize(i);
-		  l4Size = GetAckSerializedSize();
-	  }else if (l3Prot == 0xFE){ // PFC
-		  pfc.time = i.ReadU32 ();
-		  pfc.qlen = i.ReadU32 ();
-		  pfc.qIndex = i.ReadU8 ();
-		  l4Size = 9;
+			l4Size += ack.ih.Deserialize(i);
 	  }
   }
 
   return l2Size + l3Size + l4Size;
 }
 
-uint8_t CustomHeader::GetIpv4EcnBits (void) const{
+uint8_t MyCustomHeader::GetIpv4EcnBits (void) const{
 	return m_tos & 0x3;
-}
-
-uint32_t CustomHeader::GetAckSerializedSize(void){
-	return sizeof(ack.sport) + sizeof(ack.dport) + sizeof(ack.flags) + sizeof(ack.pg) + sizeof(ack.seq) + IntHeader::GetStaticSize();
-}
-
-uint32_t CustomHeader::GetUdpHeaderSize(void){
-	return 8 + sizeof(udp.pg) + sizeof(udp.seq) + IntHeader::GetStaticSize();
-}
-
-uint32_t CustomHeader::GetStaticWholeHeaderSize(void){
-	return 14 + 20 + GetUdpHeaderSize();
 }
 
 } // namespace ns3
