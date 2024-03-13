@@ -23,6 +23,8 @@ class SwitchNode : public Node{
 
 	uint32_t m_lastPktSize[pCnt];
 	uint64_t m_lastPktTs[pCnt]; // ns
+	uint64_t m_rate[pCnt];
+	uint32_t m_cnt[pCnt];
 	double m_u[pCnt];
 
 protected:
