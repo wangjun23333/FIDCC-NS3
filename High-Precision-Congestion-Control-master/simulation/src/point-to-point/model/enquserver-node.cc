@@ -53,7 +53,7 @@ TypeId EnquserverNode::GetTypeId (void)
 EnquserverNode::EnquserverNode(){
     m_ecmpSeed = m_id;
     m_node_type = 2;
-    std::cout << "Current node type: " << m_node_type << std::endl;
+    // std::cout << "Current node type: " << m_node_type << std::endl;
     m_mmu = CreateObject<SwitchMmu>();
     // for (uint32_t i = 0; i < pCnt; i++)
     //     for (uint32_t j = 0; j < pCnt; j++)
@@ -172,7 +172,7 @@ void EnquserverNode::GetShareTable(Ptr<const Packet>p, MyCustomHeader &ch){
 //对携带链路信息的数据包中的信息和共享链路表进行查找匹配，返回HeaderLinkInfo结构体类型中的数据
 void EnquserverNode::MatchSharedTableSendToRelatedSender(Ptr<NetDevice> device, Ptr<Packet>p, MyCustomHeader &ch){
     GetShareTable(p, ch);
-    std::cout << "node:" << m_id<< " sip:" << ch.sip << "  dip:"<< ch.dip << std::endl;
+    // std::cout << "node:" << m_id<< " sip:" << ch.sip << "  dip:"<< ch.dip << std::endl;
     // std::cout << "packet of RID: " << ch.ack.ih.iinfo[0].id << ", Port: " << ch.ack.ih.iinfo[0].port << std::endl;
     //  for (const auto& entry : m_sharedTable) {
     //     std::cout << "RID: " << entry.rid << ", Port: " << entry.port << std::endl;
@@ -242,7 +242,7 @@ void EnquserverNode::MatchSharedTableSendToRelatedSender(Ptr<NetDevice> device, 
         
         
             for (const auto& info : relatedSenderHeaderInfos) { //需要加判断，如果sip。。。。==原数据包中的sip。。。。，则直接转发
-                std::cout<<"matchedEntries size:*******************************"<<std::endl;
+                // std::cout<<"matchedEntries size:*******************************"<<std::endl;
                 if (info.fInfo.sip == ch.dip && info.fInfo.dip == ch.sip && info.fInfo.sport == ch.ack.dport && info.fInfo.dport == ch.ack.sport) {
                     // 这里这个转发没有看懂是啥意思，就暂时没改ch，用给的ch去转发
                     // SendToDev(p, info.fInfo.sip); //直接转发
