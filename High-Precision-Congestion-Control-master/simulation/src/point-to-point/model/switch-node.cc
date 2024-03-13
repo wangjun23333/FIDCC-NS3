@@ -201,7 +201,7 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		m_lastPktTs[ifIndex] = now_ts;
 	}
 	else {
-		if (now_ts - m_lastPktTs[ifIndex] >= 1e4) {
+		if (now_ts - m_lastPktTs[ifIndex] >= 1000*(1e11/max_rate[ifIndex])) {
 			m_rate[ifIndex] = m_txBytes[ifIndex]*8*1e9/dt;
 			m_lastPktTs[ifIndex] = now_ts;
 			m_txBytes[ifIndex] = 0;
@@ -223,12 +223,12 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		uint32_t depth = dev->GetQueue()->GetNBytesTotal();
 		push_rst = ih->PushDepth(id, ifIndex, depth, ts, _max_rate);
 
-		// std::cout << "node: " << (int)id << " port: " << ifIndex << std::endl;
-		// std::cout << "depth: " << depth << std::endl;
-		// std::cout << "rate: " << now_rate << std::endl;
-		// std::cout << "max rate: " << dev->GetDataRate().GetBitRate() << std::endl;
-		// std::cout << "ratio: " << (now_rate*10000)/max_rate[ifIndex] << std::endl;
-		// std::cout << std::endl;
+		std::cout << "node: " << (int)id << " port: " << ifIndex << std::endl;
+		std::cout << "depth: " << depth << std::endl;
+		std::cout << "rate: " << now_rate << std::endl;
+		std::cout << "max rate: " << dev->GetDataRate().GetBitRate() << std::endl;
+		std::cout << "ratio: " << (now_rate*10000)/max_rate[ifIndex] << std::endl;
+		std::cout << std::endl;
 
 		if (push_rst < 0) {
 			// uint64_t _ratio = 0;
