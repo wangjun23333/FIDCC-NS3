@@ -158,6 +158,20 @@ uint64_t RdmaQueuePair::GetWin(){
     }
     return w;
 }
+// uint64_t RdmaQueuePair::GetWin(){
+//     if (mycc.m_currentWinSize == 0)
+//         return 0;
+//     uint64_t w;
+//     if (m_var_win){
+//         w = mycc.m_currentWinSize * m_rate.GetBitRate() / m_max_rate.GetBitRate();
+//         if (w == 0)
+//             w = 1; // must > 0
+//     }else{
+//         w = mycc.m_currentWinSize ;
+//     }
+//     return w;
+// }
+
 
 uint64_t RdmaQueuePair::HpGetCurWin(){
     if (m_win == 0)
