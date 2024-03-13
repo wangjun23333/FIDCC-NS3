@@ -63,6 +63,8 @@ SwitchNode::SwitchNode() {
 		m_u[i] = 0;
 	for (uint32_t i = 0; i < pCnt; i++)
 		max_rate[i] = 0;
+	for (uint32_t i = 0; i < pCnt; i++)
+		m_rate[i] = 0;
 }
 
 void SwitchNode::SetMaxRate(uint8_t _port, uint64_t _max_rate) {
@@ -193,9 +195,19 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 	// 用于计算实时速率
 	uint64_t now_ts = Simulator::Now().GetTimeStep();
 	uint64_t dt = now_ts - m_lastPktTs[ifIndex];
-	uint64_t now_rate = (uint64_t)(p->GetSize())*8*1e9/dt;
+	uint64_t now_rate = 0;
 
-	m_lastPktTs[ifIndex] = now_ts;
+	if (m_lastPktSize[ifIndex] == 0) {
+		m_lastPktTs[ifIndex] = now_ts;
+	}
+	else {
+		if (now_ts - m_lastPktTs[ifIndex] >= 1e4) {
+			m_rate[ifIndex] = m_txBytes[ifIndex]*8*1e9/dt;
+			m_lastPktTs[ifIndex] = now_ts;
+			m_txBytes[ifIndex] = 0;
+		}
+	}
+	now_rate = m_rate[ifIndex];
 
 	
 	uint8_t* buf = p->GetBuffer();
@@ -215,6 +227,7 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		// std::cout << "depth: " << depth << std::endl;
 		// std::cout << "rate: " << now_rate << std::endl;
 		// std::cout << "max rate: " << dev->GetDataRate().GetBitRate() << std::endl;
+		// std::cout << "ratio: " << (now_rate*10000)/max_rate[ifIndex] << std::endl;
 		// std::cout << std::endl;
 
 		if (push_rst < 0) {
