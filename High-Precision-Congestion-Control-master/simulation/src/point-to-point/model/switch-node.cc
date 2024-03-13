@@ -189,8 +189,6 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		// CheckAndSendResume(inDev, qIndex);
 	}
 
-	m_txBytes[ifIndex] += p->GetSize();
-	m_lastPktSize[ifIndex] = p->GetSize();
 
 	// 用于计算实时速率
 	uint64_t now_ts = Simulator::Now().GetTimeStep();
@@ -201,6 +199,7 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		m_lastPktTs[ifIndex] = now_ts;
 	}
 	else {
+		// 或者也可以在.h里加一个各端口计数变量，每10个包或过去1ms测一次
 		if (now_ts - m_lastPktTs[ifIndex] >= 1000*(1e11/max_rate[ifIndex])) {
 			m_rate[ifIndex] = m_txBytes[ifIndex]*8*1e9/dt;
 			m_lastPktTs[ifIndex] = now_ts;
@@ -208,6 +207,10 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 		}
 	}
 	now_rate = m_rate[ifIndex];
+
+	
+	m_txBytes[ifIndex] += p->GetSize();
+	m_lastPktSize[ifIndex] = p->GetSize();
 
 	
 	uint8_t* buf = p->GetBuffer();
