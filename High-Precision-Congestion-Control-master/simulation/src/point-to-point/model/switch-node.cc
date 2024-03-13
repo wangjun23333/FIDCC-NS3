@@ -65,6 +65,8 @@ SwitchNode::SwitchNode() {
 		max_rate[i] = 0;
 	for (uint32_t i = 0; i < pCnt; i++)
 		m_rate[i] = 0;
+	for (uint32_t i = 0; i < pCnt; i++)
+		m_cnt[i] = 0;
 }
 
 void SwitchNode::SetMaxRate(uint8_t _port, uint64_t _max_rate) {
@@ -194,16 +196,18 @@ void SwitchNode::SwitchNotifyDequeue(uint32_t ifIndex, uint32_t qIndex, Ptr<Pack
 	uint64_t now_ts = Simulator::Now().GetTimeStep();
 	uint64_t dt = now_ts - m_lastPktTs[ifIndex];
 	uint64_t now_rate = 0;
+	//++m_cnt[ifIIndex];
 
 	if (m_lastPktSize[ifIndex] == 0) {
 		m_lastPktTs[ifIndex] = now_ts;
 	}
 	else {
-		// 或者也可以在.h里加一个各端口计数变量，每10个包或过去1ms测一次
-		if (now_ts - m_lastPktTs[ifIndex] >= 1000*(1e11/max_rate[ifIndex])) {
-			m_rate[ifIndex] = m_txBytes[ifIndex]*8*1e9/dt;
+		// 或者也可以在.h里加一个各端口计数变量，每10个包或过去10us测一次
+		if (/*m_cnt[ifIndex] == 10 ||*/ now_ts - m_lastPktTs[ifIndex] >= 1000*(100000000000/max_rate[ifIndex])) {
+			m_rate[ifIndex] = m_txBytes[ifIndex]*8*1000000000/dt;
 			m_lastPktTs[ifIndex] = now_ts;
 			m_txBytes[ifIndex] = 0;
+			m_cnt[ifIndex] = 0;
 		}
 	}
 	now_rate = m_rate[ifIndex];
