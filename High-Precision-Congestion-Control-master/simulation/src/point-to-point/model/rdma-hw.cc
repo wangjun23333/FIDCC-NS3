@@ -358,7 +358,7 @@ int RdmaHw::ReceiveUdp(Ptr<Packet> p, MyCustomHeader &ch){
 
 
 int RdmaHw::ReceiveTcp(Ptr<Packet> p, MyCustomHeader &ch){
-		// std::cout<< "node:" << m_node->GetId()<< "  tcp sip:" << ch.sip << "    tcp dip:" << ch.dip<< " tcp-seq:"<< ch.tcp.seq<<std::endl;
+	//std::cout<< "node:" << m_node->GetId()<< "  tcp sip:" << ch.sip << "    tcp dip:" << ch.dip<< " tcp-seq:"<< ch.tcp.seq<<std::endl;
     uint8_t ecnbits = ch.GetIpv4EcnBits();
     // std::cout<< "node\t" << m_node->GetId() << "tcp packet node num\t" << ch.tcp.ih.hinfo.nodeNum << "depth num\t" << ch.tcp.ih.hinfo.depthNum << "ratio num\t" << ch.tcp.ih.hinfo.ratioNum << "\tseq"<< ch.tcp.seq <<std::endl;
 
@@ -475,7 +475,6 @@ int RdmaHw::ReceiveCnp(Ptr<Packet> p, CustomHeader &ch){
 }
 
 int RdmaHw::ReceiveAck(Ptr<Packet> p, MyCustomHeader &ch){
-    
     uint16_t qIndex = ch.ack.pg;
     uint16_t port = ch.ack.dport;
     uint32_t seq = ch.ack.seq;
@@ -506,6 +505,8 @@ int RdmaHw::ReceiveAck(Ptr<Packet> p, MyCustomHeader &ch){
     if ((ch.ack.flags&0x01) == 0) { //自身数据包
         uint32_t nic_idx = GetNicIdxOfQp(qp);
         Ptr<QbbNetDevice> dev = m_nic[nic_idx].dev;
+        
+        
         // std::cout<<"current node:"<< m_node->GetId() << "  ack sip:" << ch.sip << "    ack dip:" << ch.dip<< "  ch-ack-flag:"<< ch.ack.flags<<" current rate:" << qp->m_rate<<" current windows:"<<qp->mycc.m_currentWinSize<<std::endl;
         if (m_ack_interval == 0)
             std::cout << "ERROR: shouldn't receive ack\n";
@@ -543,6 +544,7 @@ int RdmaHw::ReceiveAck(Ptr<Packet> p, MyCustomHeader &ch){
         }
         // ACK may advance the on-the-fly window, allowing more packets to send
         dev->TriggerTransmit();
+        
         return 0;
     }else{
         HandleAckMycc(qp, p, ch);
@@ -865,15 +867,12 @@ void RdmaHw::HyperIncreaseMlx(Ptr<RdmaQueuePair> qp){
  * My CC
  ***********************/
 void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader &ch){
-    //std::cout<< "node:" << m_node->GetId()<<"current windowsSIZE:"<<qp->mycc.m_currentWinSize<<std::endl;
     //可能是自身的ack数据包，也可能是同set主机的ack数据包
     //如果是第一个窗口或者当前窗口和上一个窗口的大小未发生改变的情况，此时不考虑过度反应
-    if (qp->mycc.m_lastUpdateSeq == 0 || qp->mycc.m_currentWinSize == qp->mycc.m_lastWinSize) {
+    if (qp->mycc.m_lastUpdateSeq == 0 || qp->mycc.m_currentWinSize == qp->mycc.m_lastWinSize ) {
         // std::cout<<"current node:"<< m_node->GetId()<<" 1"<<std::endl;
         if (ch.ack.ih.hinfo.depthNum != 0) {//数据包携带了队列长度信息
             // std::cout<<"current node:"<< m_node->GetId()<<" 2"<<std::endl;
-            
-            
             int maxDepthIndex = 0;
             for (int i = 0; i < ch.ack.ih.hinfo.depthNum; ++i) { //获取最长的队列的索引
                 if (ch.ack.ih.dinfo[i].depth >= ch.ack.ih.dinfo[maxDepthIndex].depth) {
@@ -885,42 +884,21 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             {
                 dDelta_time += (1<<24)*100;
             }
-            // if (m_node->GetId()==5)
-            // {
-            //     std::cout<<"ID:"<<m_node->GetId()<<"    1"<<"m_congestTimeStamp"<< qp->mycc.m_congestTimeStamp<< "dDelta_time"<<dDelta_time<<std::endl;
-            // }
-            // std::cout<<"current node:"<< m_node->GetId()<<" dDelta_time:"<< dDelta_time<<" m_congestTimeStamp:"<<qp->mycc.m_congestTimeStamp<<"m_dTs:"<<qp->mycc.m_dTs<<"   m_rTs:"<<qp->mycc.m_rTs<<std::endl;
-            if (dDelta_time < qp->mycc.m_congestTimeStamp) {
-                // if (m_node->GetId()==5)
-                // {
-                //     std::cout<<"ID:"<<m_node->GetId()<<"    2"<<std::endl;
-                // }
-                // std::cout<<"current node:"<< m_node->GetId()<<" 3"<<std::endl;
+            uint64_t maxDepthTime = Simulator::Now().GetTimeStep() - dDelta_time;
+            if (dDelta_time < qp->mycc.m_congestTimeStamp || qp->mycc.m_congestTimeStamp == 0 ) {
+                // std::cout<<"node:"<<m_node->GetId()<<" depth:"<<ch.ack.ih.dinfo[maxDepthIndex].depth<<" ID"<<ch.ack.ih.dinfo[maxDepthIndex].iinfo.id<<std::endl;
                 qp->mycc.m_depth = ch.ack.ih.dinfo[maxDepthIndex].depth;
                 qp->mycc.m_congestTimeStamp = dDelta_time;
-                qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndex].ts*100;
-//                qp->mycc.m_dIsOwn = ch.ack.isOwn;
+                qp->mycc.m_dTs = Simulator::Now().GetTimeStep() - dDelta_time;
+                //qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndex].ts*100;
                 qp->mycc.m_max_dRate = ch.ack.ih.dinfo[maxDepthIndex].maxRate;
-                
-            }else if (qp->mycc.m_congestTimeStamp == 0){
-                // if (m_node->GetId()==5)
-                // {
-                //     std::cout<<"ID:"<<m_node->GetId()<<"    3"<<std::endl;
-                // }
-                // std::cout<<"current node:"<< m_node->GetId()<<" 4"<<std::endl;
-                qp->mycc.m_depth = ch.ack.ih.dinfo[maxDepthIndex].depth;
-                qp->mycc.m_congestTimeStamp = dDelta_time;
-                qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndex].ts*100;
-//                qp->mycc.m_dIsOwn = ch.ack.isOwn;
-                qp->mycc.m_max_dRate = ch.ack.ih.dinfo[maxDepthIndex].maxRate;
-
             }
             
         }else if(ch.ack.ih.hinfo.ratioNum != 0 && ch.ack.ih.hinfo.depthNum == 0){//数据包只携带了速率比值信息
             int maxRadioIndex = 0;
             // std::cout<<"current node:"<< m_node->GetId()<<" 5"<<std::endl;
             for (int i = 0; i < ch.ack.ih.hinfo.ratioNum; ++i) { //获取最长的队列的索引
-                if (ch.ack.ih.rinfo[i].ratio >= ch.ack.ih.rinfo[maxRadioIndex].ratio && ch.ack.ih.rinfo[i].ratio != 10000) {
+                if (ch.ack.ih.rinfo[i].ratio >= ch.ack.ih.rinfo[maxRadioIndex].ratio) {
                     maxRadioIndex = i;
                 }
             }
@@ -930,17 +908,23 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             {
                 rDelta_time += (1<<24)*100;
             }
-            if ((rDelta_time < qp->mycc.m_idleTimeStamp || qp->mycc.m_idleTimeStamp == 0 ) && ch.ack.ih.rinfo[maxRadioIndex].ratio != 10000) {
-                // std::cout<<"current node:"<< m_node->GetId()<<" 6"<<std::endl;
+            uint64_t maxRatioTime = Simulator::Now().GetTimeStep() - rDelta_time;
+            if ((rDelta_time < qp->mycc.m_idleTimeStamp || qp->mycc.m_idleTimeStamp == 0 )) {
+                // if (m_node->GetId()==4)
+                // {
+                //     std::cout<<"flags:"<<ch.ack.flags<<" ratio:"<<ch.ack.ih.rinfo[maxRadioIndex].ratio<<"   node:"<<ch.ack.ih.rinfo[maxRadioIndex].iinfo.id<<std::endl;
+                // }
+                
                 qp->mycc.m_ratio = ch.ack.ih.rinfo[maxRadioIndex].ratio;
+                qp->mycc.m_rTs = Simulator::Now().GetTimeStep()-rDelta_time;
                 qp->mycc.m_idleTimeStamp = rDelta_time;
-                qp->mycc.m_rTs = ch.ack.ih.rinfo[maxRadioIndex].ts*100;
+                //qp->mycc.m_rTs = ch.ack.ih.rinfo[maxRadioIndex].ts*100;
 //                qp->mycc.m_rIsOwn = ch.ack.isOwn;
                 qp->mycc.m_max_rRate = ch.ack.ih.rinfo[maxRadioIndex].maxRate;
 
             }
         }
-    }else if(qp->mycc.m_currentWinSize < qp->mycc.m_lastWinSize){//当前窗口的大小小于上一个窗口的大小，防止对同一个拥塞事件作出反应
+    }else if(qp->mycc.m_currentWinSize < qp->mycc.m_lastWinSize ){//当前窗口的大小小于上一个窗口的大小，防止对同一个拥塞事件作出反应
         if (ch.ack.ih.hinfo.depthNum != 0) {//数据包携带了队列长度信息,只选择同set主机且在窗口内发生拥塞的数据包做为判断
             // std::cout<<"current node:"<< m_node->GetId()<<" 8"<<std::endl;
             int maxDepthIndexOverReaction = 0;
@@ -950,28 +934,24 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                 }
             }
             int64_t dDelta_overReactionTime = Simulator::Now().GetTimeStep()%((1<<24)*100) - 100*ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts;
+
+            
+            
             // int64_t dDelta_time = Simulator::Now().GetTimeStep()%((1<<24)*100) - 100*ch.ack.ih.dinfo[maxDepthIndex].ts;
             if (dDelta_overReactionTime<0)
             {
                 dDelta_overReactionTime += (1<<24)*100;
             }
+            uint64_t maxDepthTime = Simulator::Now().GetTimeStep() - dDelta_overReactionTime;
+
             if (ch.ack.flags == 1 && 
             (dDelta_overReactionTime < qp->mycc.m_congestTimeStamp || qp->mycc.m_congestTimeStamp == 0)&& 
-            ((((100*ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts)&0x3fffffff) > ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/3)&0x3fffffff)) ||
-             (((100*ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts)&0x3fffffff) < ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/3)&0x3fffffff) &&
-              ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/4)&0x3fffffff) - ((100*ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts)&0x3fffffff) > qp->m_baseRtt))) 
-            {//
-                // std::cout<<"current node:"<< m_node->GetId()<<" 9"<<std::endl;
-            //     if (((100*ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts)&0x3fffffff) < ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt)&0x3fffffff) &&
-            //   ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/4)&0x3fffffff) - ((100*ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts)&0x3fffffff) > qp->m_baseRtt)
-            //     {
-            //         std::cout<<"current node:"<< m_node->GetId()<<" 10"<<std::endl;
-            //     }
-                
+             maxDepthTime > qp->mycc.m_lastUpdateTime + qp->m_baseRtt/3)   
+            {
                 qp->mycc.m_depth = ch.ack.ih.dinfo[maxDepthIndexOverReaction].depth;
                 qp->mycc.m_congestTimeStamp = dDelta_overReactionTime;
-                qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100;
-//                qp->mycc.m_dIsOwn = ch.ack.isOwn;
+                qp->mycc.m_dTs = maxDepthTime;
+                //qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100;
                 qp->mycc.m_max_dRate = ch.ack.ih.dinfo[maxDepthIndexOverReaction].maxRate;
 
             }
@@ -979,7 +959,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             int maxRadioIndexOverReaction = 0;
             // std::cout<<"current node:"<< m_node->GetId()<<" 11"<<std::endl;
             for (int i = 0; i < ch.ack.ih.hinfo.ratioNum; ++i) { //获取最长的队列的索引
-                if (ch.ack.ih.rinfo[i].ratio >= ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio && ch.ack.ih.rinfo[i].ratio != 10000) {
+                if (ch.ack.ih.rinfo[i].ratio >= ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio) {
                     maxRadioIndexOverReaction = i;
                 }
             }
@@ -988,16 +968,23 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             {
                 rDelta_overReactionTime += (1<<24)*100;
             }
+            uint64_t maxRatioTime = Simulator::Now().GetTimeStep() - rDelta_overReactionTime;
+
             if ((rDelta_overReactionTime < qp->mycc.m_idleTimeStamp || qp->mycc.m_idleTimeStamp == 0) && 
-            ((ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 > qp->mycc.m_lastUpdateCongestTime) && 
-            (ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 - qp->mycc.m_lastUpdateCongestTime < qp->m_baseRtt*2))||
-            ((ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 < qp->mycc.m_lastUpdateCongestTime)&&
-            (qp->mycc.m_lastUpdateCongestTime - ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 > qp->m_baseRtt))  && ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio != 10000) 
+                maxRatioTime > qp->mycc.m_lastUpdateCongestTime
+             
+            // ((ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 > qp->mycc.m_lastUpdateCongestTime) && 
+            // (ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 - qp->mycc.m_lastUpdateCongestTime < qp->m_baseRtt*2))||
+            // ((ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 < qp->mycc.m_lastUpdateCongestTime)&&
+            // (qp->mycc.m_lastUpdateCongestTime - ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100 > qp->m_baseRtt))  
+
+            ) 
             {
                 // std::cout<<"12"<<std::endl;
                 qp->mycc.m_ratio = ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio;
                 qp->mycc.m_idleTimeStamp = rDelta_overReactionTime;
-                qp->mycc.m_rTs = ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100;
+                qp->mycc.m_rTs = maxRatioTime;
+                //qp->mycc.m_rTs = ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100;
 //                qp->mycc.m_rIsOwn = ch.ack.isOwn;
                 qp->mycc.m_max_rRate = ch.ack.ih.rinfo[maxRadioIndexOverReaction].maxRate;
                 
@@ -1019,16 +1006,21 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             {
                 dDelta_overReactionTime += (1<<24)*100;
             }
-            if ((dDelta_overReactionTime < qp->mycc.m_congestTimeStamp || qp->mycc.m_congestTimeStamp == 0) && 
-            ((ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 > qp->mycc.m_lastUpdateIdleTime) &&
-            (ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 - qp->mycc.m_lastUpdateIdleTime < qp->m_baseRtt*2))||
-            ((ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 < qp->mycc.m_lastUpdateIdleTime) &&
-            (qp->mycc.m_lastUpdateIdleTime - ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 > qp->m_baseRtt))) 
+            uint64_t maxDepthTime = Simulator::Now().GetTimeStep() - dDelta_overReactionTime;
+            if ((dDelta_overReactionTime < qp->mycc.m_congestTimeStamp || 
+            qp->mycc.m_congestTimeStamp == 0) && 
+            maxDepthTime >  qp->mycc.m_lastUpdateIdleTime
+            // ((ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 > qp->mycc.m_lastUpdateIdleTime) &&
+            // (ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 - qp->mycc.m_lastUpdateIdleTime < qp->m_baseRtt))||
+            // ((ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 < qp->mycc.m_lastUpdateIdleTime) &&
+            // (qp->mycc.m_lastUpdateIdleTime - ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100 > qp->m_baseRtt))
+            ) 
             {//
                 // std::cout<<"15"<<std::endl;
                 qp->mycc.m_depth = ch.ack.ih.dinfo[maxDepthIndexOverReaction].depth;
                 qp->mycc.m_congestTimeStamp = dDelta_overReactionTime;
-                qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100;
+                qp->mycc.m_dTs = maxDepthTime;
+                //qp->mycc.m_dTs = ch.ack.ih.dinfo[maxDepthIndexOverReaction].ts*100;
 //                qp->mycc.m_dIsOwn = ch.ack.isOwn;
                 qp->mycc.m_max_dRate = ch.ack.ih.dinfo[maxDepthIndexOverReaction].maxRate;
 
@@ -1037,27 +1029,29 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             // std::cout<<"17"<<std::endl;
             int maxRadioIndexOverReaction = 0;
             for (int i = 0; i < ch.ack.ih.hinfo.ratioNum; ++i) { //获取最长的队列的索引
-                if (ch.ack.ih.rinfo[i].ratio >= ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio && ch.ack.ih.rinfo[i].ratio != 10000) {
+                if (ch.ack.ih.rinfo[i].ratio >= ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio) {
                     maxRadioIndexOverReaction = i;
                 }
             }
             // uint64_t rDelta_overReactionTime = Simulator::Now().GetTimeStep() - ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts;
-            int64_t rDelta_overReactionTime = Simulator::Now().GetTimeStep()%((1<<24)*100) - 100*ch.ack.ih.dinfo[maxRadioIndexOverReaction].ts;
+            int64_t rDelta_overReactionTime = Simulator::Now().GetTimeStep()%((1<<24)*100) - 100*ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts;
             if (rDelta_overReactionTime<0)
             {
                 rDelta_overReactionTime += (1<<24)*100;
             }
+
+            uint64_t maxRatioTime = Simulator::Now().GetTimeStep()-rDelta_overReactionTime;
+
             if (ch.ack.flags == 1 && 
             (rDelta_overReactionTime < qp->mycc.m_idleTimeStamp || qp->mycc.m_idleTimeStamp == 0) && 
-            ((((100*ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts)&0x3fffffff) > ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/3)&0x3fffffff)) ||
-            (((100*ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts)&0x3fffffff) < ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/3)&0x3fffffff) &&
-            ((qp->mycc.m_lastUpdateTime + qp->m_baseRtt/4)&0x3fffffff) - ((100*ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts)&0x3fffffff) > qp->m_baseRtt)) &&
-            ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio != 10000)  
+            maxRatioTime > qp->mycc.m_lastUpdateTime+qp->m_baseRtt/3 )  
             {
                 // std::cout<<"18"<<std::endl;
+                
                 qp->mycc.m_ratio = ch.ack.ih.rinfo[maxRadioIndexOverReaction].ratio;
                 qp->mycc.m_idleTimeStamp = rDelta_overReactionTime;
-                qp->mycc.m_rTs = ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100;
+                qp->mycc.m_rTs = maxRatioTime;
+                //qp->mycc.m_rTs = ch.ack.ih.rinfo[maxRadioIndexOverReaction].ts*100;
 //                qp->mycc.m_rIsOwn = ch.ack.isOwn;
                 qp->mycc.m_max_rRate = ch.ack.ih.rinfo[maxRadioIndexOverReaction].maxRate;
 
@@ -1077,7 +1071,13 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
         // std::cout<<"current node:"<< m_node->GetId()<<" one window"<<std::endl;
         // std::cout<<"current node:"<< m_node->GetId()<<" m_dTs:"<<qp->mycc.m_dTs<<" m_rTs:"<<qp->mycc.m_rTs<<std::endl;
             //todo:计算速率
-            if ((qp->mycc.m_dTs != 0 || qp->mycc.m_rTs != 0) && (qp->mycc.m_dTs > qp->mycc.m_rTs || qp->mycc.m_rTs-qp->mycc.m_dTs>1000*1000000)) {//在一个窗口内拥塞事件最后发生
+            // if (m_node->GetId() == 5)
+            // {
+            //     std::cout<<"current_node:"<< m_node->GetId()<<" currentTime:"<< Simulator::Now().GetTimeStep()<<std::endl;
+            // }
+            // exit(0);
+            
+            if ((qp->mycc.m_dTs != 0 || qp->mycc.m_rTs != 0) && qp->mycc.m_dTs > qp->mycc.m_rTs ) {//在一个窗口内拥塞事件最后发生
                 // std::cout<<"current node:"<< m_node->GetId()<<" decrease rate"<<std::endl;
                 qp->mycc.m_lastUpdateTime = Simulator::Now().GetTimeStep();
                 qp->mycc.m_lastUpdateSeq = next_seq;
@@ -1087,7 +1087,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
 
                 //1std::cout<<"next_seq:"<<next_seq<<std::endl;
                 // xiugai
-                double alpha = (qp->mycc.m_depth/(double)(qp->mycc.m_depth + (qp->mycc.m_max_dRate * qp->m_baseRtt)/8))/0.9;
+                double alpha = (qp->mycc.m_depth/(double)(qp->mycc.m_depth + (qp->mycc.m_max_dRate * qp->m_baseRtt)/8));
                 // std::cout<<"qp->mycc.m_depth:"<<qp->mycc.m_depth<<" qp->mycc.m_max_dRate:"<<qp->mycc.m_max_dRate<<" qp->m_baseRtt:"<<qp->m_baseRtt<<std::endl;
                 qp->mycc.m_currentWinSize = qp->mycc.m_currentWinSize * (1-alpha);
                 new_rate = qp->m_rate * (1-alpha);
@@ -1100,7 +1100,8 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                 // qp->m_rate = new_rate;
                 ChangeRate(qp, new_rate);
                 //1std::cout<<"***************alpha***********************:"<<alpha<<std::endl;
-                std::cout<<"current_node:"<< m_node->GetId() <<"    congestion"<< "  ack_sip:" << ch.sip << "    ack_dip:" << ch.dip<< "  ch-ack-flag:"<< ch.ack.flags<<" current_rate:" <<  qp->m_rate <<"   depth:"<<qp->mycc.m_depth<<"    max_rate:"<<qp->mycc.m_max_dRate<<" baseRtt:"<<qp->m_baseRtt<<" alpha:"<<alpha<<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
+                // std::cout<<"current_node:"<< m_node->GetId() << " congestTimeStamp:"<< qp->mycc.m_congestTimeStamp <<std::endl;
+                std::cout<<"current_time:"<<Simulator::Now().GetTimeStep()<<" current_node:"<< m_node->GetId() << " congestion"<<" current_rate:" <<  qp->m_rate <<"   depth:"<<qp->mycc.m_depth<<" baseRtt:"<<qp->m_baseRtt<<" alpha:"<<alpha<<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
                 //重置下面的变量
                 qp->mycc.m_congestTimeStamp = 0;
                 qp->mycc.m_idleTimeStamp = 0;//节点空闲发生到接收到该数据包的目前窗口为止最小的时间
@@ -1113,7 +1114,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
 
 
                 
-            }else if((qp->mycc.m_dTs != 0 || qp->mycc.m_rTs != 0) && (qp->mycc.m_dTs < qp->mycc.m_rTs || qp->mycc.m_dTs-qp->mycc.m_rTs>1000*1000000)){//在一个窗口内空闲事件最后发生
+            }else if((qp->mycc.m_dTs != 0 || qp->mycc.m_rTs != 0) && qp->mycc.m_dTs < qp->mycc.m_rTs && qp->mycc.m_ratio != 10000){//在一个窗口内空闲事件最后发生
                 // std::cout<<"current node:"<< m_node->GetId()<<" increase rate"<<std::endl;
                 qp->mycc.m_lastUpdateTime = Simulator::Now().GetTimeStep();
                 qp->mycc.m_lastUpdateSeq = next_seq;
@@ -1123,7 +1124,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                 {
                     // std::cout<<"m_rai:"<<m_rai.GetBitRate()<<"m_rai's BDP:"<<m_rai.GetBitRate()*qp->m_baseRtt/1000000000<<std::endl;
                     qp->mycc.m_currentWinSize = (double)qp->mycc.m_currentWinSize/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*qp->m_baseRtt/100000000;
-                    new_rate = qp->m_rate/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*10;
+                    new_rate = qp->m_rate/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*1.6;
                     // new_rate = qp->mycc.m_currentWinSize / qp->m_baseRtt;
                     if (new_rate < m_minRate)
                         new_rate = m_minRate;
@@ -1131,7 +1132,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                         new_rate = qp->m_max_rate;
                     ChangeRate(qp, new_rate);
                     // qp->m_rate = new_rate;
-                    std::cout<<"current_node:"<< m_node->GetId() <<"    idle"<< "  ack_sip:" << ch.sip << "    ack_dip:" << ch.dip<< "  ch-ack-flag:"<< ch.ack.flags<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
+                    std::cout<<"current_time:"<<Simulator::Now().GetTimeStep()<<" current_node:"<< m_node->GetId() <<" idle"<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
                                     // qp->m_rate = new_rate;
                     
                 }
@@ -1155,7 +1156,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                 qp->mycc.m_lastUpdateSeq = next_seq;
                 qp->mycc.m_lastWinSize = qp->mycc.m_currentWinSize;
                 // qp->mycc.m_lastUpdateCongestTime = qp->mycc.m_dTs;
-                std::cout<<"current_node:"<< m_node->GetId() <<"    normal"<< "  ack_sip:" << ch.sip << "    ack_dip:" << ch.dip<< "  ch-ack-flag:"<< ch.ack.flags<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<"  qp->mycc.m_depth:"<<qp->mycc.m_depth <<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
+                std::cout<<"current_time:"<<Simulator::Now().GetTimeStep()<<" current_node:"<< m_node->GetId() <<" normal"<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<"  qp->mycc.m_depth:"<<qp->mycc.m_depth <<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
                 qp->mycc.m_congestTimeStamp = 0;
                 qp->mycc.m_idleTimeStamp = 0;//节点空闲发生到接收到该数据包的目前窗口为止最小的时间
 //                    qp->mycc.m_dIsOwn = 3;
@@ -1170,7 +1171,7 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
             qp->mycc.m_lastUpdateSeq = next_seq;
             qp->mycc.m_lastWinSize = qp->mycc.m_currentWinSize;
             // qp->mycc.m_lastUpdateCongestTime = qp->mycc.m_dTs;
-            std::cout<<"current_node:"<< m_node->GetId() <<"    first_rtt_window"<< "  ack_sip:" << ch.sip << "    ack_dip:" << ch.dip<< "  ch-ack-flag:"<< ch.ack.flags<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<"  qp->mycc.m_depth:"<<qp->mycc.m_depth <<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
+            std::cout<<"current_time:"<<Simulator::Now().GetTimeStep()<<" current_node:"<< m_node->GetId() <<"    first_rtt_window"<< "  ack_sip:" << ch.sip << "    ack_dip:" << ch.dip<< "  ch-ack-flag:"<< ch.ack.flags<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<"  qp->mycc.m_depth:"<<qp->mycc.m_depth <<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
             qp->mycc.m_congestTimeStamp = 0;
             qp->mycc.m_idleTimeStamp = 0;//节点空闲发生到接收到该数据包的目前窗口为止最小的时间
 //                    qp->mycc.m_dIsOwn = 3;
