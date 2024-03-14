@@ -1087,18 +1087,19 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
 
                 //1std::cout<<"next_seq:"<<next_seq<<std::endl;
                 // xiugai
-                double alpha = (qp->mycc.m_depth/(double)(qp->mycc.m_depth + (qp->mycc.m_max_dRate * qp->m_baseRtt)/8));
+                double alpha = (qp->mycc.m_depth/(double)(qp->mycc.m_depth + (10 * qp->m_baseRtt)/8));
+                
                 // std::cout<<"qp->mycc.m_depth:"<<qp->mycc.m_depth<<" qp->mycc.m_max_dRate:"<<qp->mycc.m_max_dRate<<" qp->m_baseRtt:"<<qp->m_baseRtt<<std::endl;
                 qp->mycc.m_currentWinSize = qp->mycc.m_currentWinSize * (1-alpha);
                 new_rate = qp->m_rate * (1-alpha);
                 
                 //更新速率
-                if (new_rate < m_minRate)
-                    new_rate = m_minRate;
+                if (new_rate < m_minRate/1000)
+                    new_rate = m_minRate/1000;
                 if (new_rate > qp->m_max_rate)
                     new_rate = qp->m_max_rate;
-                // qp->m_rate = new_rate;
-                ChangeRate(qp, new_rate);
+                qp->m_rate = new_rate;
+                // ChangeRate(qp, new_rate);
                 //1std::cout<<"***************alpha***********************:"<<alpha<<std::endl;
                 // std::cout<<"current_node:"<< m_node->GetId() << " congestTimeStamp:"<< qp->mycc.m_congestTimeStamp <<std::endl;
                 std::cout<<"current_time:"<<Simulator::Now().GetTimeStep()<<" current_node:"<< m_node->GetId() << " congestion"<<" current_rate:" <<  qp->m_rate <<"   depth:"<<qp->mycc.m_depth<<" baseRtt:"<<qp->m_baseRtt<<" alpha:"<<alpha<<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
@@ -1123,15 +1124,15 @@ void RdmaHw::HandleAckMycc(Ptr<RdmaQueuePair> qp, Ptr<Packet> p, MyCustomHeader 
                 if (qp->mycc.m_ratio!=0)
                 {
                     // std::cout<<"m_rai:"<<m_rai.GetBitRate()<<"m_rai's BDP:"<<m_rai.GetBitRate()*qp->m_baseRtt/1000000000<<std::endl;
-                    qp->mycc.m_currentWinSize = (double)qp->mycc.m_currentWinSize/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*qp->m_baseRtt/100000000;
-                    new_rate = qp->m_rate/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*1.6;
+                    qp->mycc.m_currentWinSize = 0.95*(double)qp->mycc.m_currentWinSize/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*qp->m_baseRtt/100000000;
+                    new_rate = 0.95*qp->m_rate/((double)qp->mycc.m_ratio/10000)+m_rai.GetBitRate()*1.6;
                     // new_rate = qp->mycc.m_currentWinSize / qp->m_baseRtt;
-                    if (new_rate < m_minRate)
-                        new_rate = m_minRate;
+                    if (new_rate < m_minRate/1000)
+                        new_rate = m_minRate/1000;
                     if (new_rate > qp->m_max_rate)
                         new_rate = qp->m_max_rate;
-                    ChangeRate(qp, new_rate);
-                    // qp->m_rate = new_rate;
+                    // ChangeRate(qp, new_rate);
+                    qp->m_rate = new_rate;
                     std::cout<<"current_time:"<<Simulator::Now().GetTimeStep()<<" current_node:"<< m_node->GetId() <<" idle"<<" current_rate:" << qp->m_rate<<" ratio:"<<qp->mycc.m_ratio<<" current_windows:"<<qp->mycc.m_currentWinSize<<std::endl;
                                     // qp->m_rate = new_rate;
                     
