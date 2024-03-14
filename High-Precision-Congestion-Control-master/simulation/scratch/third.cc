@@ -943,7 +943,7 @@ int main(int argc, char *argv[])
 		}
 		if (dnode->GetNodeType() == 1) {
 			Ptr<SwitchNode> sw = DynamicCast<SwitchNode>(dnode);
-			sw->max_rate[nbr2if[snode][dnode].idx] = nbr2if[snode][dnode].bw;
+			sw->max_rate[nbr2if[dnode][snode].idx] = nbr2if[dnode][snode].bw;
 		}
 
 
